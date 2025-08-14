@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card'
 import { Button } from '../components/Button'
 import { ChatPreview } from '../components/ChatPreview'
@@ -9,17 +9,37 @@ import {
   MessageCircle, 
   TrendingUp,
   Calendar,
-  Crown
+  Crown,
+  AlertCircle
 } from 'lucide-react'
 import { mockUserSubscriptions, mockChats, mockCreators } from '../data/mockData'
+import { useToast } from '../context/ToastContext'
+import { SkeletonCard, SkeletonChatPreview } from '../components/Skeleton'
+import { EmptyState } from '../components/EmptyState'
 
-export function Dashboard() {
-  const [activeTab, setActiveTab] = useState('overview')
+export function Dashboard({ activeTab: initialTab = 'overview' }) {
+  const [activeTab, setActiveTab] = useState(initialTab)
+  const [isLoading, setIsLoading] = useState(true)
+  const { showSuccess } = useToast()
   
   const userSubscriptions = mockUserSubscriptions
   const userChats = mockChats.filter(chat => 
     userSubscriptions.some(sub => sub.tierId === chat.tierId)
   )
+
+  // Update active tab when prop changes
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
+  
+  // Simulate loading state
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 1000)
+    
+    return () => clearTimeout(timer)
+  }, [])
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: User },
@@ -139,48 +159,66 @@ export function Dashboard() {
           </div>
           
           <div className="space-y-4">
-            {userSubscriptions.map((subscription) => {
-              const tier = mockCreators
-                .flatMap(creator => creator.tiers)
-                .find(t => t.tierId === subscription.tierId)
-              
-              const creator = mockCreators.find(c => 
-                c.tiers.some(t => t.tierId === subscription.tierId)
-              )
-              
-              return (
-                <Card key={subscription.subscriptionId}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                          <Crown className="w-6 h-6 text-accent" />
+            {isLoading ? (
+              // Loading state
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            ) : userSubscriptions.length > 0 ? (
+              // Subscriptions found
+              userSubscriptions.map((subscription) => {
+                const tier = mockCreators
+                  .flatMap(creator => creator.tiers)
+                  .find(t => t.tierId === subscription.tierId)
+                
+                const creator = mockCreators.find(c => 
+                  c.tiers.some(t => t.tierId === subscription.tierId)
+                )
+                
+                return (
+                  <Card key={subscription.subscriptionId}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                            <Crown className="w-6 h-6 text-accent" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold">{tier?.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              @{creator?.farcasterUserId}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
+                              <span>Status: {subscription.status}</span>
+                              <span>Next billing: {new Date(subscription.endDate).toLocaleDateString()}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold">{tier?.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            @{creator?.farcasterUserId}
-                          </p>
-                          <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
-                            <span>Status: {subscription.status}</span>
-                            <span>Next billing: {new Date(subscription.endDate).toLocaleDateString()}</span>
+                        
+                        <div className="text-right">
+                          <div className="font-semibold">
+                            {tier?.price} {tier?.priceCurrency}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {tier?.recurrence}
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="text-right">
-                        <div className="font-semibold">
-                          {tier?.price} {tier?.priceCurrency}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {tier?.recurrence}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+                    </CardContent>
+                  </Card>
+                )
+              })
+            ) : (
+              // No subscriptions found
+              <EmptyState
+                icon={CreditCard}
+                title="No active subscriptions"
+                description="Subscribe to a creator to get access to exclusive content and chat rooms."
+                actionLabel="Explore Creators"
+                onAction={() => window.location.href = '/'}
+              />
+            )}
           </div>
         </div>
       )}
@@ -189,19 +227,39 @@ export function Dashboard() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Your Chat Rooms</h2>
-            <span className="text-sm text-muted-foreground">
-              {userChats.length} active rooms
-            </span>
+            {!isLoading && (
+              <span className="text-sm text-muted-foreground">
+                {userChats.length} active rooms
+              </span>
+            )}
           </div>
           
           <div className="space-y-4">
-            {userChats.map((chat) => (
-              <ChatPreview
-                key={chat.id}
-                chat={chat}
-                onClick={() => window.location.href = `/chat/${chat.tierId}`}
+            {isLoading ? (
+              // Loading state
+              <>
+                <SkeletonChatPreview />
+                <SkeletonChatPreview />
+              </>
+            ) : userChats.length > 0 ? (
+              // Chats found
+              userChats.map((chat) => (
+                <ChatPreview
+                  key={chat.id}
+                  chat={chat}
+                  onClick={() => window.location.href = `/chat/${chat.tierId}`}
+                />
+              ))
+            ) : (
+              // No chats found
+              <EmptyState
+                icon={MessageCircle}
+                title="No chat rooms joined"
+                description="Join a creator's community to access exclusive chat rooms."
+                actionLabel="Explore Creators"
+                onAction={() => window.location.href = '/'}
               />
-            ))}
+            )}
           </div>
         </div>
       )}

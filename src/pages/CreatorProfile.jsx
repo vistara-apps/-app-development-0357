@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { TierCard } from '../components/TierCard'
 import { Modal } from '../components/Modal'
 import { Button } from '../components/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card'
 import { usePaymentContext } from '../hooks/usePaymentContext'
+import { useToast } from '../context/ToastContext'
 import { Users, Calendar, Star, ExternalLink } from 'lucide-react'
 import { mockCreators, mockUserSubscriptions } from '../data/mockData'
 
@@ -13,7 +14,14 @@ export function CreatorProfile() {
   const [showSubscribeModal, setShowSubscribeModal] = useState(false)
   const [selectedTier, setSelectedTier] = useState(null)
   const [isSubscribing, setIsSubscribing] = useState(false)
-  const { createSession } = usePaymentContext()
+  const { createSession, paymentError, clearPaymentError } = usePaymentContext()
+  
+  // Clear payment errors when modal closes
+  useEffect(() => {
+    if (!showSubscribeModal && paymentError) {
+      clearPaymentError()
+    }
+  }, [showSubscribeModal, paymentError, clearPaymentError])
   
   const creator = mockCreators.find(c => c.userId === creatorId)
   
@@ -36,6 +44,8 @@ export function CreatorProfile() {
     window.location.href = `/chat/${tier.tierId}`
   }
 
+  const { showSuccess, showError } = useToast()
+  
   const processSubscription = async () => {
     if (!selectedTier) return
     
@@ -45,11 +55,11 @@ export function CreatorProfile() {
       await createSession(amount)
       
       // Simulate successful subscription
-      alert(`Successfully subscribed to ${selectedTier.name}!`)
+      showSuccess(`Successfully subscribed to ${selectedTier.name}!`)
       setShowSubscribeModal(false)
     } catch (error) {
       console.error('Subscription failed:', error)
-      alert('Subscription failed. Please try again.')
+      showError(error.message || 'Subscription failed. Please try again.')
     } finally {
       setIsSubscribing(false)
     }
@@ -186,6 +196,12 @@ export function CreatorProfile() {
               )}
             </div>
             
+            {paymentError && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
+                <p className="text-sm text-destructive">{paymentError}</p>
+              </div>
+            )}
+            
             <div className="flex space-x-3">
               <Button 
                 variant="outline" 
@@ -199,7 +215,12 @@ export function CreatorProfile() {
                 onClick={processSubscription}
                 disabled={isSubscribing}
               >
-                {isSubscribing ? 'Processing...' : 'Subscribe Now'}
+                {isSubscribing ? (
+                  <div className="flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>
+                    Processing...
+                  </div>
+                ) : 'Subscribe Now'}
               </Button>
             </div>
           </div>
