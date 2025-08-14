@@ -1,14 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
-import { Send, Users, Settings, MoreVertical } from 'lucide-react'
+import { Send, Users, Settings, MoreVertical, AlertCircle } from 'lucide-react'
 import { mockMessages, mockCreators } from '../data/mockData'
+import { useToast } from '../context/ToastContext'
+import { Input } from '../components/Input'
 
 export function ChatRoom() {
   const { tierId } = useParams()
+  const navigate = useNavigate()
+  const { showSuccess, showError } = useToast()
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState(mockMessages.filter(msg => msg.chatId === `chat-${tierId.split('-')[1]}`))
+  const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef(null)
   
   const tier = mockCreators
@@ -19,11 +24,25 @@ export function ChatRoom() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
   
+  useEffect(() => {
+    // Check access when component mounts
+    if (!tier) {
+      showError("You don't have access to this chat room")
+      setTimeout(() => navigate('/dashboard'), 2000)
+    }
+  }, [tier, navigate, showError])
+  
   if (!tier) {
     return (
       <div className="text-center py-12">
         <h2 className="text-2xl font-semibold mb-2">Chat room not found</h2>
         <p className="text-muted-foreground">You don't have access to this chat room.</p>
+        <Button 
+          className="mt-4" 
+          onClick={() => navigate('/dashboard')}
+        >
+          Go to Dashboard
+        </Button>
       </div>
     )
   }
@@ -32,18 +51,24 @@ export function ChatRoom() {
     e.preventDefault()
     if (!message.trim()) return
     
-    const newMessage = {
-      id: `msg-${Date.now()}`,
-      chatId: `chat-${tierId.split('-')[1]}`,
-      userId: 'current-user',
-      username: 'You',
-      message: message.trim(),
-      timestamp: new Date().toISOString(),
-      isCreator: false
-    }
+    setIsLoading(true)
     
-    setMessages(prev => [...prev, newMessage])
-    setMessage('')
+    // Simulate network delay
+    setTimeout(() => {
+      const newMessage = {
+        id: `msg-${Date.now()}`,
+        chatId: `chat-${tierId.split('-')[1]}`,
+        userId: 'current-user',
+        username: 'You',
+        message: message.trim(),
+        timestamp: new Date().toISOString(),
+        isCreator: false
+      }
+      
+      setMessages(prev => [...prev, newMessage])
+      setMessage('')
+      setIsLoading(false)
+    }, 300)
   }
 
   return (
@@ -116,16 +141,32 @@ export function ChatRoom() {
         {/* Message Input */}
         <div className="border-t border-border p-4">
           <form onSubmit={handleSendMessage} className="flex space-x-2">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 px-3 py-2 bg-bg border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm"
-            />
-            <Button type="submit" size="sm" disabled={!message.trim()}>
-              <Send className="w-4 h-4" />
-            </Button>
+            <div className="flex-1">
+              <Input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Type a message..."
+                disabled={isLoading}
+                aria-label="Message input"
+                maxLength={500}
+                error={message.length > 500 ? "Message is too long" : null}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button 
+                type="submit" 
+                size="sm" 
+                disabled={!message.trim() || isLoading || message.length > 500}
+                aria-label="Send message"
+              >
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-t-transparent border-accent rounded-full animate-spin"></div>
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
           </form>
         </div>
       </Card>
